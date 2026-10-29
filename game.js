@@ -61,7 +61,7 @@ const justPressed = {};
 
 window.addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && e.target.closest('select, button, input, textarea')) return;
-  justPressed[e.code] = !keys[e.code];
+  if (!e.repeat && !keys[e.code]) justPressed[e.code] = true;
   keys[e.code] = true;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
     e.preventDefault();
@@ -83,6 +83,7 @@ const randInt = (min, max) => Math.floor(rand(min, max + 1));
 const POWER_UP_TYPES = {
   speed: { color: '#0ff', label: 'V', title: 'VELOCIDAD', effect: 'speedBoost' },
   shield: { color: '#68aaff', label: 'E', title: 'ESCUDO', effect: 'shield' },
+  tripleShot: { color: '#ffd866', label: 'T', title: 'TRIPLE SHOT', effect: 'tripleShot' },
 };
 const POWER_UP_DURATION = 5;
 
@@ -241,6 +242,7 @@ class Ship {
     this.shootCooldown = 0;
     this.speedBoost = 0;
     this.shield = 0;
+    this.tripleShot = 0;
     this.dead          = false;
   }
 
@@ -250,6 +252,7 @@ class Ship {
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost > 0) this.speedBoost = Math.max(0, this.speedBoost - dt);
     if (this.shield > 0) this.shield = Math.max(0, this.shield - dt);
+    if (this.tripleShot > 0) this.tripleShot = Math.max(0, this.tripleShot - dt);
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -274,10 +277,16 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
+    const SPREAD = Math.PI / 12;
+    const angleOffsets = this.tripleShot > 0 ? [-SPREAD, 0, SPREAD] : [0];
+    return angleOffsets.map(angleOffset => this.createBullet(this.angle + angleOffset));
+  }
+
+  createBullet(angle) {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+    return new Bullet(ox, oy, angle);
   }
 
   draw() {
@@ -354,6 +363,21 @@ let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
 let shootingStarTimer;
+let tripleShotTimer;
+
+function updateTripleShotSpawn(dt) {
+  if (powerUps.some(powerUp => powerUp.type === 'tripleShot')) return;
+  tripleShotTimer -= dt;
+  if (tripleShotTimer > 0) return;
+  const radius = 10;
+  powerUps.push({
+    x: rand(radius, W - radius),
+    y: rand(radius, H - radius),
+    radius,
+    type: 'tripleShot',
+  });
+  tripleShotTimer = rand(15, 25);
+}
 
 function updateShootingStar(dt) {
   shootingStarTimer -= dt;
@@ -388,6 +412,7 @@ function initGame() {
   level  = 1;
   state  = 'playing';
   shootingStarTimer = rand(25, 40);
+  tripleShotTimer = rand(15, 25);
   spawnAsteroids(4);
 }
 
@@ -395,6 +420,7 @@ function nextLevel() {
   level++;
   asteroids = [];
   shootingStarTimer = rand(25, 40);
+  tripleShotTimer = rand(15, 25);
   bullets   = [];
   particles = [];
   powerUps = [];
@@ -444,6 +470,7 @@ function update(dt) {
 
   ship.update(dt);
   updateShootingStar(dt);
+  updateTripleShotSpawn(dt);
   bullets.forEach(b => b.update(dt));
   asteroids.forEach(a => a.update(dt));
   particles.forEach(p => p.update(dt));
