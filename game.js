@@ -10,7 +10,7 @@ const keys = {};
 const justPressed = {};
 
 window.addEventListener('keydown', e => {
-  justPressed[e.code] = !keys[e.code];
+  if (!e.repeat && !keys[e.code]) justPressed[e.code] = true;
   keys[e.code] = true;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
     e.preventDefault();
@@ -183,6 +183,7 @@ class Ship {
     this.invincible    = 3;
     this.shootCooldown = 0;
     this.speedBoost = 0;
+    this.tripleShot = 0;
     this.dead          = false;
   }
 
@@ -191,6 +192,7 @@ class Ship {
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost > 0) this.speedBoost = Math.max(0, this.speedBoost - dt);
+    if (this.tripleShot > 0) this.tripleShot = Math.max(0, this.tripleShot - dt);
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -215,10 +217,16 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
+    const SPREAD = Math.PI / 12;
+    const angleOffsets = this.tripleShot > 0 ? [-SPREAD, 0, SPREAD] : [0];
+    return angleOffsets.map(angleOffset => this.createBullet(this.angle + angleOffset));
+  }
+
+  createBullet(angle) {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+    return new Bullet(ox, oy, angle);
   }
 
   draw() {
@@ -294,6 +302,21 @@ let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
 let shootingStarTimer;
+let tripleShotTimer;
+
+function updateTripleShotSpawn(dt) {
+  if (powerUps.some(powerUp => powerUp.type === 'tripleShot')) return;
+  tripleShotTimer -= dt;
+  if (tripleShotTimer > 0) return;
+  const radius = 10;
+  powerUps.push({
+    x: rand(radius, W - radius),
+    y: rand(radius, H - radius),
+    radius,
+    type: 'tripleShot',
+  });
+  tripleShotTimer = rand(15, 25);
+}
 
 function updateShootingStar(dt) {
   shootingStarTimer -= dt;
@@ -328,6 +351,7 @@ function initGame() {
   level  = 1;
   state  = 'playing';
   shootingStarTimer = rand(25, 40);
+  tripleShotTimer = rand(15, 25);
   spawnAsteroids(4);
 }
 
@@ -335,6 +359,7 @@ function nextLevel() {
   level++;
   asteroids = [];
   shootingStarTimer = rand(25, 40);
+  tripleShotTimer = rand(15, 25);
   bullets   = [];
   particles = [];
   powerUps = [];
@@ -384,6 +409,7 @@ function update(dt) {
 
   ship.update(dt);
   updateShootingStar(dt);
+  updateTripleShotSpawn(dt);
   bullets.forEach(b => b.update(dt));
   asteroids.forEach(a => a.update(dt));
   particles.forEach(p => p.update(dt));
@@ -402,7 +428,7 @@ function update(dt) {
         score += POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
         if (!(a instanceof ShootingStar) && a.size === 1 && Math.random() < 0.05) {
-          powerUps.push({ x: a.x, y: a.y, radius: 10 });
+          powerUps.push({ x: a.x, y: a.y, radius: 10, type: 'speed' });
         }
         newAsteroids.push(...a.split());
       }
@@ -413,7 +439,8 @@ function update(dt) {
 
   powerUps = powerUps.filter(powerUp => {
     if (dist(ship, powerUp) >= ship.radius + powerUp.radius) return true;
-    ship.speedBoost = 5;
+    if (powerUp.type === 'tripleShot') ship.tripleShot = 5;
+    else ship.speedBoost = 5;
     return false;
   });
 
@@ -465,6 +492,12 @@ function drawHUD() {
     ctx.fillText(`VELOCIDAD ${ship.speedBoost.toFixed(1)}s`, 14, 48);
   }
 
+  if (ship.tripleShot > 0) {
+    ctx.fillStyle = '#ffd866';
+    ctx.textAlign = 'left';
+    ctx.fillText(`TRIPLE SHOT ${ship.tripleShot.toFixed(1)}s`, 14, 70);
+  }
+
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
 
@@ -488,15 +521,17 @@ function draw() {
   asteroids.forEach(a => a.draw());
   bullets.forEach(b => b.draw());
   powerUps.forEach(powerUp => {
-    ctx.strokeStyle = '#0ff';
+    const isTripleShot = powerUp.type === 'tripleShot';
+    const color = isTripleShot ? '#ffd866' : '#0ff';
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(powerUp.x, powerUp.y, powerUp.radius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = '#0ff';
+    ctx.fillStyle = color;
     ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('V', powerUp.x, powerUp.y + 4);
+    ctx.fillText(isTripleShot ? 'T' : 'V', powerUp.x, powerUp.y + 4);
   });
   ship.draw();
 
