@@ -118,6 +118,56 @@ class Asteroid {
   }
 }
 
+class ShootingStar extends Asteroid {
+  constructor(x, y) {
+    super(x, y, 1);
+    const angle = Math.atan2(this.vy, this.vx);
+    const speed = SPEEDS[1] * 2;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.life = 5;
+    this.ttl = this.life;
+  }
+
+  update(dt) {
+    super.update(dt);
+    this.ttl = Math.max(0, this.ttl - dt);
+    if (this.ttl === 0) this.dead = true;
+  }
+
+  split() { return []; }
+
+  draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(Math.atan2(this.vy, this.vx));
+    ctx.globalAlpha = this.ttl / this.life;
+    const trail = ctx.createLinearGradient(-70, 0, 0, 0);
+    trail.addColorStop(0, 'transparent');
+    trail.addColorStop(1, '#ffd866');
+    ctx.strokeStyle = trail;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-70, 0);
+    ctx.lineTo(0, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffd866';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const angle = i * Math.PI / 5;
+      const radius = i % 2 === 0 ? this.radius : this.radius * 0.45;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor() { this.reset(); }
@@ -243,6 +293,17 @@ let ship, bullets, asteroids, particles, powerUps;
 let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
+let shootingStarTimer;
+
+function updateShootingStar(dt) {
+  shootingStarTimer -= dt;
+  if (shootingStarTimer > 0 || asteroids.some(a => a instanceof ShootingStar)) return;
+  const x = Math.random() < 0.5 ? 0 : W;
+  const y = rand(0, H);
+  if (dist(ship, { x, y }) < 130) return;
+  asteroids.push(new ShootingStar(x, y));
+  shootingStarTimer = rand(25, 40);
+}
 
 function spawnAsteroids(count) {
   const SAFE_DIST = 130;
@@ -266,11 +327,14 @@ function initGame() {
   lives  = 3;
   level  = 1;
   state  = 'playing';
+  shootingStarTimer = rand(25, 40);
   spawnAsteroids(4);
 }
 
 function nextLevel() {
   level++;
+  asteroids = [];
+  shootingStarTimer = rand(25, 40);
   bullets   = [];
   particles = [];
   powerUps = [];
@@ -308,6 +372,7 @@ function update(dt) {
     particles.forEach(p => p.update(dt));
     particles = particles.filter(p => !p.dead);
     asteroids.forEach(a => a.update(dt));
+    asteroids = asteroids.filter(a => !a.dead);
     if (deadTimer <= 0) { state = 'playing'; ship.reset(); }
     return;
   }
@@ -318,12 +383,14 @@ function update(dt) {
   }
 
   ship.update(dt);
+  updateShootingStar(dt);
   bullets.forEach(b => b.update(dt));
   asteroids.forEach(a => a.update(dt));
   particles.forEach(p => p.update(dt));
 
   bullets   = bullets.filter(b => !b.dead);
   particles = particles.filter(p => !p.dead);
+  asteroids = asteroids.filter(a => !a.dead);
 
   // Bala vs asteroide
   const newAsteroids = [];
@@ -334,7 +401,7 @@ function update(dt) {
         a.dead = true;
         score += POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
-        if (a.size === 1 && Math.random() < 0.05) {
+        if (!(a instanceof ShootingStar) && a.size === 1 && Math.random() < 0.05) {
           powerUps.push({ x: a.x, y: a.y, radius: 10 });
         }
         newAsteroids.push(...a.split());
@@ -361,7 +428,7 @@ function update(dt) {
   }
 
   // Nivel completado
-  if (asteroids.length === 0) nextLevel();
+  if (!asteroids.some(a => !(a instanceof ShootingStar))) nextLevel();
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
