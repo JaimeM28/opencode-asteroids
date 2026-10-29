@@ -30,6 +30,12 @@ Luego visita `http://localhost:3000`.
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
 
+## Skins
+
+Usa el selector bajo el juego para elegir entre Clásica, Neón, Carmesí y Dorada, incluso durante la partida. La apariencia se aplica a la nave, su propulsor y los iconos de vidas, sin modificar las mecánicas del juego.
+
+La selección se conserva al reaparecer, cambiar de nivel y reiniciar. También se guarda entre sesiones si el navegador permite almacenamiento local.
+
 ## Puntuación
 
 | Asteroide | Puntos |

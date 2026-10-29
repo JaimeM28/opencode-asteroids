@@ -9,18 +9,37 @@
     body {
       background: #000;
       display: flex;
+      flex-direction: column;
+      gap: 16px;
       align-items: center;
       justify-content: center;
-      height: 100vh;
+      min-height: 100vh;
+      color: #fff;
+      font-family: monospace;
     }
     canvas {
       display: block;
       border: 1px solid #222;
     }
+    select {
+      margin-left: 8px;
+      padding: 6px 10px;
+      background: #111;
+      color: #fff;
+      border: 1px solid #666;
+      font: inherit;
+    }
+    select:focus-visible {
+      outline: 2px solid #0ff;
+      outline-offset: 3px;
+    }
   </style>
 </head>
 <body>
   <canvas id="canvas" width="800" height="600"></canvas>
+  <label for="skin-selector">Apariencia de la nave
+    <select id="skin-selector"></select>
+  </label>
   <script src="game.js"></script>
 </body>
 </html>

@@ -5,11 +5,62 @@ const ctx = canvas.getContext('2d');
 const W = 800;
 const H = 600;
 
+const SHIP_SKINS = [
+  { id: 'classic', name: 'Clásica', color: '#fff', flameColor: '#ff8200', vertices: [[20, 0], [-12, -9], [-7, 0], [-12, 9]] },
+  { id: 'neon', name: 'Neón', color: '#0ff', flameColor: '#b366ff', vertices: [[20, 0], [-12, -11], [-4, 0], [-12, 11]] },
+  { id: 'crimson', name: 'Carmesí', color: '#ff526d', flameColor: '#ffb347', vertices: [[20, 0], [-6, -10], [-12, -7], [-7, 0], [-12, 7], [-6, 10]] },
+  { id: 'gold', name: 'Dorada', color: '#ffd866', flameColor: '#fff', vertices: [[20, 0], [-8, -10], [-12, 0], [-8, 10]] },
+];
+const SKIN_STORAGE_KEY = 'asteroids.shipSkin';
+let selectedSkin = loadSkin();
+
+function loadSkin() {
+  try {
+    const savedId = localStorage.getItem(SKIN_STORAGE_KEY);
+    return SHIP_SKINS.find(skin => skin.id === savedId) || SHIP_SKINS[0];
+  } catch {
+    return SHIP_SKINS[0];
+  }
+}
+
+function setupSkinSelector() {
+  const selector = document.getElementById('skin-selector');
+  for (const skin of SHIP_SKINS) {
+    const option = document.createElement('option');
+    option.value = skin.id;
+    option.textContent = skin.name;
+    selector.appendChild(option);
+  }
+  selector.value = selectedSkin.id;
+  selector.addEventListener('change', () => {
+    selectedSkin = SHIP_SKINS.find(skin => skin.id === selector.value) || SHIP_SKINS[0];
+    try {
+      localStorage.setItem(SKIN_STORAGE_KEY, selectedSkin.id);
+    } catch {
+      // La selección sigue funcionando si el navegador bloquea el almacenamiento.
+    }
+    selector.blur();
+  });
+}
+
+function drawShipShape(skin) {
+  ctx.strokeStyle = skin.color;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  skin.vertices.forEach(([x, y], index) => {
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.stroke();
+}
+
 // ── Input ─────────────────────────────────────────────────────────────────────
 const keys = {};
 const justPressed = {};
 
 window.addEventListener('keydown', e => {
+  if (e.target instanceof HTMLElement && e.target.closest('select, button, input, textarea')) return;
   justPressed[e.code] = !keys[e.code];
   keys[e.code] = true;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code))
@@ -229,18 +280,8 @@ class Ship {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
     ctx.lineWidth   = 1.5;
-    ctx.lineJoin    = 'round';
-
-    // Silueta clásica: triángulo con muesca trasera
-    ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
-    ctx.closePath();
-    ctx.stroke();
+    drawShipShape(selectedSkin);
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
@@ -248,7 +289,7 @@ class Ship {
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - rand(6, 14), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = selectedSkin.flameColor;
       ctx.stroke();
     }
 
@@ -436,16 +477,9 @@ function drawLifeIcon(x, y) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.2;
-  ctx.lineJoin    = 'round';
-  ctx.beginPath();
-  ctx.moveTo( 9,  0);
-  ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
-  ctx.closePath();
-  ctx.stroke();
+  ctx.scale(0.5, 0.5);
+  ctx.lineWidth = 2.4;
+  drawShipShape(selectedSkin);
   ctx.restore();
 }
 
@@ -517,5 +551,6 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
+setupSkinSelector();
 initGame();
 requestAnimationFrame(loop);
